@@ -1,3 +1,9 @@
+pub use config::*;
+pub use error::TgError;
+
+mod config;
+mod error;
+
 #[cfg(test)]
 mod tests {
     #[test]
