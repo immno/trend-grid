@@ -10,4 +10,10 @@ pub enum TgError {
 
     #[error("Parse config error")]
     ConfigError(#[from] toml::de::Error),
+
+    #[error("Can not connect to the server")]
+    PingError(),
+
+    #[error("Url Error: {0}")]
+    UrlError(String),
 }
