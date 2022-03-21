@@ -24,9 +24,21 @@ pub trait MarketService {
 }
 
 /// Abstraction of transaction services
+#[async_trait]
 pub trait TradeService {
     /// Send in a new order.
-    fn order(&self) -> Result<bool>;
+    async fn buy_limit(&self, quantity: usize, price: Option<f64>) -> Result<bool>;
+
+    async fn buy(&self, quantity: usize) -> Result<bool> {
+        todo!()
+    }
+
+    /// Send in a new order.
+    async fn sell_limit(&self, quantity: usize, price: Option<f64>) -> Result<bool>;
+
+    async fn sell(&self, quantity: usize) -> Result<bool> {
+        todo!()
+    }
 }
 
 pub trait TradeFactory {
