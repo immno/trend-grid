@@ -6,24 +6,38 @@ use crate::TgError;
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct ServerConfig {
-    pub market: MarketConfig,
-    pub log: LogConfig,
+    pub trade: TradeConfig,
     pub coin: CoinConfig,
+    pub log: LogConfig,
+}
+
+impl AsRef<TradeConfig> for TradeConfig {
+    fn as_ref(&self) -> &TradeConfig {
+        self
+    }
+}
+
+impl AsRef<CoinConfig> for CoinConfig {
+    fn as_ref(&self) -> &CoinConfig {
+        self
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-pub struct LogConfig {
-    pub enable_log_file: bool,
-    pub log_level: String,
-    pub path: String,
-    pub rotation: RotationConfig,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-pub struct MarketConfig {
+pub struct TradeConfig {
+    pub handle: TradeType,
+    pub market: Option<String>,
     pub url: String,
     pub key: String,
     pub secret: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub enum TradeType {
+    // BinanceProdApi,
+    // BinanceProdWs,
+    BinanceFakeApi,
+    // BinanceFakeWs,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -33,18 +47,32 @@ pub struct CoinConfig {
     pub bnb: Option<Coin>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-pub struct Coin {
-    pub next_buy_price: i64,
-    pub grid_sell_price: i64,
-    pub step: usize,
-    pub profit_ratio: f64,
-    pub double_throw_ratio: f64,
-    pub quantity: f64,
+impl AsRef<Coin> for Coin {
+    fn as_ref(&self) -> &Coin {
+        self
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-pub enum RotationConfig {
+pub struct Coin {
+    pub next_buy_price: f64,
+    pub grid_sell_price: f64,
+    pub step: usize,
+    pub profit_ratio: f64,
+    pub double_throw_ratio: f64,
+    pub quantity: usize,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct LogConfig {
+    pub enable_log_file: bool,
+    pub log_level: String,
+    pub path: String,
+    pub rotation: LogRotationType,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub enum LogRotationType {
     Hourly,
     Daily,
     Never,

@@ -12,13 +12,14 @@ use tracing_subscriber::{
     EnvFilter,
 };
 
-use trend_grid::{start_server_with_config, LogConfig, RotationConfig, ServerConfig, TgError};
+use trend_grid::{start_server_with_config, LogConfig, LogRotationType, ServerConfig, TgError};
 
 #[tokio::main]
 async fn main() -> Result<()> {
     env::set_var(
         "TGS_CONFIG",
-        "D:\\coding\\source\\trend-grid\\fixtures\\tgs.conf",
+        // "D:\\coding\\source\\trend-grid\\fixtures\\tgs.conf",
+        "/home/mno/IdeaProjects/trend-grid/fixtures/tgs.conf",
     );
     let config = match env::var("TGS_CONFIG") {
         Ok(path) => fs::read_to_string(&path)
@@ -44,9 +45,9 @@ fn init_log(log: &LogConfig) {
     let stdout_log = fmt::layer().compact();
 
     let file_appender = match log.rotation {
-        RotationConfig::Hourly => tracing_appender::rolling::hourly(&log.path, "server.log"),
-        RotationConfig::Daily => tracing_appender::rolling::daily(&log.path, "server.log"),
-        RotationConfig::Never => tracing_appender::rolling::never(&log.path, "server.log"),
+        LogRotationType::Hourly => tracing_appender::rolling::hourly(&log.path, "server.log"),
+        LogRotationType::Daily => tracing_appender::rolling::daily(&log.path, "server.log"),
+        LogRotationType::Never => tracing_appender::rolling::never(&log.path, "server.log"),
     };
 
     let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
