@@ -6,6 +6,7 @@ use crate::trade::binance_api_service::{BinanceMarketService, BinanceTradeServic
 use crate::{TgError, TradeConfig, TradeType};
 
 mod binance_api_params;
+mod binance_api_response;
 mod binance_api_service;
 
 /// Abstraction of Market Service
@@ -15,7 +16,7 @@ pub trait MarketService {
     async fn ping(&self) -> Result<bool>;
 
     /// Latest price for a symbol or symbols.
-    async fn ticker_price(&self) -> Result<TickerPrice>;
+    async fn ticker_price(&self) -> Result<f64>;
 
     /// 24 hour rolling window price change statistics. Careful when accessing this with no symbol.
     async fn ticker_24hr(&self) -> Result<TickerPriceDay>;

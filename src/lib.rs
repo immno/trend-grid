@@ -11,6 +11,7 @@ use crate::grid::{FixedGridService, GridService};
 mod config;
 mod error;
 mod grid;
+mod serde;
 mod trade;
 
 /// 通过配置创建 KV 服务器
@@ -24,31 +25,31 @@ pub async fn start_server_with_config(config: &ServerConfig) -> Result<()> {
         let grid: FixedGridService = eth.into();
         let grid: &dyn GridService = &grid;
         loop {
-            if grid.is_buy(&curr_price) {
-                // if let Ok(_) = trade.buy(100).await {
-                //     grid.poise();
-                //     info!("挂单成功")
-                // } else {
-                //     return continue;
-                // }
-            } else if grid.is_sell(&curr_price) {
-                if grid.is_air() {
-                    grid.modify_price();
-                } else {
-                    // if let Ok(_) = trade.sell(80).await {
-                    //     grid.poise();
-                    // } else {
-                    //     return continue;
-                    // }
-                }
-            } else {
-                warn!(
-                    "币种:{},当前市价：{}。未能满足交易,继续运行",
-                    "eth",
-                    curr_price.price.as_str()
-                )
-            }
+            // if grid.is_buy(&curr_price) {
+            // if let Ok(_) = trade.buy(100).await {
+            //     grid.poise();
+            //     info!("挂单成功")
+            // } else {
+            //     return continue;
+            // }
+            // } else if grid.is_sell(&curr_price) {
+            //     if grid.is_air() {
+            //         grid.modify_price();
+            //     } else {
+            // if let Ok(_) = trade.sell(80).await {
+            //     grid.poise();
+            // } else {
+            //     return continue;
+            // }
         }
+        // } else {
+        //     warn!(
+        //         "币种:{},当前市价：{}。未能满足交易,继续运行",
+        //         "eth",
+        //         curr_price.price.as_str()
+        //     );
+        // }
+        // }
     };
 
     Ok(())
