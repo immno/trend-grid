@@ -5,6 +5,7 @@ use tracing::info;
 use crate::trade::binance_api_service::{BinanceMarketService, BinanceTradeService};
 use crate::{TgError, TradeConfig, TradeType};
 
+mod binance_api_params;
 mod binance_api_service;
 
 /// Abstraction of Market Service
@@ -29,50 +30,27 @@ pub trait TradeService {
     /// Send in a new order.
     async fn buy_limit(&self, quantity: usize, price: Option<f64>) -> Result<bool>;
 
-    async fn buy(&self, quantity: usize) -> Result<bool> {
-        todo!()
-    }
+    async fn buy(&self, quantity: usize) -> Result<bool>;
 
     /// Send in a new order.
     async fn sell_limit(&self, quantity: usize, price: Option<f64>) -> Result<bool>;
 
-    async fn sell(&self, quantity: usize) -> Result<bool> {
-        todo!()
-    }
+    async fn sell(&self, quantity: usize) -> Result<bool>;
 }
 
-pub trait TradeFactory {
-    fn make(
-        &self,
-        config: &TradeConfig,
-    ) -> Result<(Box<dyn MarketService>, Box<dyn TradeService>), TgError>;
-}
-
-#[derive(Default)]
-pub struct SimpleFactory;
-
-impl SimpleFactory {
-    pub fn new() -> Self {
-        Self {}
-    }
-}
-
-impl TradeFactory for SimpleFactory {
-    fn make(
-        &self,
-        config: &TradeConfig,
-    ) -> Result<(Box<dyn MarketService>, Box<dyn TradeService>), TgError> {
-        info!(
-            "Initialize Market&Trade Service: {:?} - {}",
-            config.handle,
-            config.url.as_str()
-        );
-        match config.handle {
-            TradeType::BinanceFakeApi => {
-                let m = Box::<BinanceMarketService>::new(config.try_into()?);
-                let t = Box::<BinanceTradeService>::new(config.try_into()?);
-                Ok((m, t))
-            }
+pub fn factory(
+    config: &TradeConfig,
+) -> Result<(Box<dyn MarketService>, Box<dyn TradeService>), TgError> {
+    info!(
+        "Initialize Market&Trade Service: {:?} - {}",
+        config.handle,
+        config.url.as_str()
+    );
+    match config.handle {
+        TradeType::BinanceFakeApi => {
+            let m = Box::new(BinanceMarketService::new(config)?);
+            let t = Box::new(BinanceTradeService::new(config)?);
+            Ok((m, t))
         }
     }
 }

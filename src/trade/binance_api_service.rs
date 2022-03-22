@@ -1,50 +1,95 @@
+use std::borrow::Borrow;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use async_trait::async_trait;
 use reqwest::Url;
+use ring::hmac;
+use serde::Serialize;
 
 use crate::trade::{MarketService, TickerPrice, TickerPriceDay, TradeService};
 use crate::{TgError, TradeConfig};
 
+pub type BianResult<T> = Result<T, TgError>;
+
 pub struct BinanceTradeService {
-    url: Url,
+    http_client: reqwest::Client,
+    hmac_key: hmac::Key,
+    pub api_key: String,
+    pub base_url: reqwest::Url,
 }
 
 #[async_trait]
 impl TradeService for BinanceTradeService {
     async fn buy_limit(&self, quantity: usize, price: Option<f64>) -> anyhow::Result<bool> {
-        let mut url = self.url.clone();
+        let mut url = self.base_url.clone();
         url.set_path("/fapi/v1/ping");
         Ok(reqwest::get(url).await?.status().is_success())
+    }
+
+    async fn buy(&self, quantity: usize) -> anyhow::Result<bool> {
+        todo!()
     }
 
     async fn sell_limit(&self, quantity: usize, price: Option<f64>) -> anyhow::Result<bool> {
         todo!()
     }
+
+    async fn sell(&self, quantity: usize) -> anyhow::Result<bool> {
+        todo!()
+    }
 }
 
-impl TryFrom<&TradeConfig> for BinanceTradeService {
-    type Error = TgError;
+impl BinanceTradeService {
+    pub fn new(config: &TradeConfig) -> Result<Self, TgError> {
+        let base_url = reqwest::Url::parse(config.url.as_str())
+            .map_err(|_| TgError::UrlError(config.url.to_string()))?;
+        let http_client = reqwest::Client::new();
+        let key = hmac::Key::new(hmac::HMAC_SHA256, config.secret.as_bytes());
 
-    fn try_from(config: &TradeConfig) -> Result<Self, Self::Error> {
-        // let _key = hmac::Key::new(hmac::HMAC_SHA256, config.secret.as_bytes());
-        // let _signature = hmac::sign(&_key, "ss".as_bytes());
         Ok(Self {
-            url: Url::parse(config.url.as_str()).unwrap(),
+            http_client,
+            hmac_key: key,
+            api_key: config.key.to_string(),
+            base_url,
         })
+    }
+
+    fn sign<P: Serialize>(&self, params: &P) -> anyhow::Result<String> {
+        let qs = serde_qs::to_string(&params)?;
+        let signature = hmac::sign(self.hmac_key.borrow(), qs.as_bytes());
+        let signature = hex::encode(signature.as_ref());
+        Ok(signature)
+    }
+
+    /// send request
+    async fn send_request(
+        &self,
+        url: reqwest::Url,
+        method: reqwest::Method,
+    ) -> anyhow::Result<bool> {
+        let res = self
+            .http_client
+            .request(method, url)
+            .header("Content-Type", "application/json")
+            .header("X-MBX-APIKEY", self.api_key.as_str())
+            .send()
+            .await?;
+        let resp = TgError::bina_resp(res).await?;
+        Ok(resp.is_empty())
     }
 }
 
 pub struct BinanceMarketService {
-    url: Url,
+    http_client: reqwest::Client,
+    pub url: Url,
 }
 
 #[async_trait]
 impl MarketService for BinanceMarketService {
     async fn ping(&self) -> anyhow::Result<bool> {
-        let mut url = self.url.clone();
-        url.set_path("/fapi/v1/ping");
-        Ok(reqwest::get(url).await?.status().is_success())
+        let url = self.url.join("/fapi/v1/ping")?;
+        let json_resp = self.send_request(url, reqwest::Method::GET).await;
+        json_resp
     }
 
     async fn ticker_price(&self) -> anyhow::Result<TickerPrice> {
@@ -61,25 +106,38 @@ impl MarketService for BinanceMarketService {
 }
 
 impl BinanceMarketService {
+    pub fn new(config: &TradeConfig) -> Result<Self, TgError> {
+        let url_str = match config.market.as_ref() {
+            Some(market) => market.as_str(),
+            _ => config.url.as_str(),
+        };
+        let url = Url::parse(url_str).map_err(|_| TgError::UrlError(url_str.to_string()))?;
+        let http_client = reqwest::Client::new();
+
+        Ok(Self { http_client, url })
+    }
+
     fn get_now() -> String {
         match SystemTime::now().duration_since(UNIX_EPOCH) {
             Ok(now) => now.as_millis().to_string(),
             Err(_) => "0".to_string(),
         }
     }
-}
 
-impl TryFrom<&TradeConfig> for BinanceMarketService {
-    type Error = TgError;
-
-    fn try_from(config: &TradeConfig) -> Result<Self, Self::Error> {
-        let url_str = match config.market.as_ref() {
-            Some(market) => market.as_str(),
-            _ => config.url.as_str(),
-        };
-        let url = Url::parse(url_str).map_err(|_| TgError::UrlError(url_str.to_string()))?;
-
-        Ok(Self { url })
+    /// send request
+    async fn send_request(
+        &self,
+        url: reqwest::Url,
+        method: reqwest::Method,
+    ) -> anyhow::Result<bool> {
+        let res = self
+            .http_client
+            .request(method, url)
+            .header("Content-Type", "application/json")
+            .send()
+            .await?;
+        let resp = TgError::bina_resp(res).await?;
+        Ok(resp.is_empty())
     }
 }
 
