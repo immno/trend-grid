@@ -1,6 +1,14 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize)]
+pub struct PEmpty;
+
+#[derive(Debug, Serialize)]
+pub struct PSymbol {
+    pub symbol: String,
+}
+
+#[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PKline {
     pub symbol: String,

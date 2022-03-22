@@ -80,8 +80,17 @@ pub enum LogRotationType {
 
 impl ServerConfig {
     pub fn load(path: &str) -> Result<Self, TgError> {
-        let config = fs::read_to_string(path)?;
-        let config: Self = toml::from_str(&config)?;
+        let str = fs::read_to_string(path)?;
+        let config = Self::from_str(str.as_str())?;
+        Ok(config)
+    }
+
+    pub fn from_str(s: &str) -> Result<Self, TgError> {
+        let mut config: Self = toml::from_str(s)?;
+        let mut url = &mut config.trade.url;
+        if !url.ends_with('/') {
+            url.push('/');
+        }
         Ok(config)
     }
 }
@@ -92,9 +101,8 @@ mod tests {
 
     #[test]
     fn server_config_should_be_loaded() {
-        let result: Result<ServerConfig, toml::de::Error> =
-            toml::from_str(include_str!("../fixtures/tgs.conf"));
-        // assert!(result.is_ok());
+        let result = ServerConfig::from_str(include_str!("../fixtures/tgs.conf"));
+        assert!(result.is_ok());
         match result {
             Ok(config) => println!("{:?}", config),
             Err(error) => println!("{:?}", error),

@@ -1,15 +1,14 @@
-use std::borrow::Borrow;
-use std::time::{SystemTime, UNIX_EPOCH};
-
 use async_trait::async_trait;
 use reqwest::Url;
 use ring::hmac;
 use serde::Serialize;
+use std::borrow::Borrow;
+use std::time::{SystemTime, UNIX_EPOCH};
 
+use crate::trade::binance_api_params::{PEmpty, PSymbol};
+use crate::trade::binance_api_response::{RH24ticker, RKline, RSpotPrice};
 use crate::trade::{MarketService, TickerPrice, TickerPriceDay, TradeService};
 use crate::{TgError, TradeConfig};
-
-pub type BianResult<T> = Result<T, TgError>;
 
 pub struct BinanceTradeService {
     http_client: reqwest::Client,
@@ -54,28 +53,31 @@ impl BinanceTradeService {
         })
     }
 
-    fn sign<P: Serialize>(&self, params: &P) -> anyhow::Result<String> {
-        let qs = serde_qs::to_string(&params)?;
+    fn sign_and_query<P: Serialize>(&self, params: &P) -> anyhow::Result<String> {
+        let qs = serde_qs::to_string(&params).unwrap_or("".to_string());
         let signature = hmac::sign(self.hmac_key.borrow(), qs.as_bytes());
         let signature = hex::encode(signature.as_ref());
-        Ok(signature)
+        Ok(format!("{}&signature={}", qs, signature))
     }
 
     /// send request
-    async fn send_request(
+    async fn send_request<P: serde::Serialize>(
         &self,
-        url: reqwest::Url,
-        method: reqwest::Method,
-    ) -> anyhow::Result<bool> {
+        path: &str,
+        params: &P,
+    ) -> anyhow::Result<String> {
+        let url = self.base_url.join(path)?;
+        let query = self.sign_and_query(params)?;
         let res = self
             .http_client
-            .request(method, url)
+            .request(reqwest::Method::GET, url)
             .header("Content-Type", "application/json")
             .header("X-MBX-APIKEY", self.api_key.as_str())
+            .query(query.as_str())
             .send()
             .await?;
         let resp = TgError::bina_resp(res).await?;
-        Ok(resp.is_empty())
+        Ok(resp)
     }
 }
 
@@ -87,20 +89,30 @@ pub struct BinanceMarketService {
 #[async_trait]
 impl MarketService for BinanceMarketService {
     async fn ping(&self) -> anyhow::Result<bool> {
-        let url = self.url.join("/fapi/v1/ping")?;
-        let json_resp = self.send_request(url, reqwest::Method::GET).await;
-        json_resp
+        let json_str = self.send_request("ping", &PEmpty).await?;
+        let obj: String = serde_json::from_str(json_str.as_str())?;
+        Ok(!obj.is_empty())
     }
 
-    async fn ticker_price(&self) -> anyhow::Result<TickerPrice> {
-        todo!()
+    async fn ticker_price(&self) -> anyhow::Result<f64> {
+        let param = PSymbol {
+            symbol: "ss".to_string(),
+        };
+        let json_str = self.send_request("ticker/price", &param).await?;
+        let obj: RSpotPrice = serde_json::from_str(json_str.as_str())?;
+        Ok(obj.price)
     }
 
     async fn ticker_24hr(&self) -> anyhow::Result<TickerPriceDay> {
+        let json_str = self.send_request("ticker/24hr", &PEmpty).await?;
+        let obj: RSpotPrice = serde_json::from_str(json_str.as_str())?;
+
         todo!()
     }
 
     async fn k_lines(&self) -> anyhow::Result<bool> {
+        let json_str = self.send_request("ticker/24hr", &PEmpty).await?;
+        let obj: RSpotPrice = serde_json::from_str(json_str.as_str())?;
         todo!()
     }
 }
@@ -125,76 +137,40 @@ impl BinanceMarketService {
     }
 
     /// send request
-    async fn send_request(
+    async fn send_request<P: serde::Serialize>(
         &self,
-        url: reqwest::Url,
-        method: reqwest::Method,
-    ) -> anyhow::Result<bool> {
+        path: &str,
+        params: &P,
+    ) -> anyhow::Result<String> {
+        let url = self.url.join(path)?;
+        let param = serde_qs::to_string(params).unwrap_or("".to_string());
         let res = self
             .http_client
-            .request(method, url)
+            .request(reqwest::Method::GET, url)
             .header("Content-Type", "application/json")
+            .query(param.as_str())
             .send()
             .await?;
         let resp = TgError::bina_resp(res).await?;
-        Ok(resp.is_empty())
+        Ok(resp)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-
-    use hex::ToHex;
-    use ring::hmac;
-
     use super::*;
 
-    #[tokio::test]
-    async fn ping() {
-        // let mut s = HashMap::new();
-        // s.insert("type", "MARKET");
-        // s.insert("symbol", "BTCUSDT");
-        // s.insert("side", "BUY");
-        // s.insert("quantity", "1");
-        // s.insert("recvWindow", "5000");
-        // let now = BinanceMarketService::get_now();
-        // s.insert("timestamp", now.as_str());
-        //
-        // let mut url = reqwest::Url::parse("https://fapi.binance.com/fapi/v1/order").unwrap();
-        // url.query_pairs_mut().clear();
-        //
-        // for (key, value) in s.iter() {
-        //     url.query_pairs_mut().append_pair(key, value);
-        // }
-        //
-        // let q = url.query().unwrap();
-        // let key = hmac::Key::new(
-        //     hmac::HMAC_SHA256,
-        //     "4b42ddee81f19826959a40249d339eaae87a2caac1bce690c18a5ca52a2c3cfd".as_bytes(),
-        // );
-        // let signature = hmac::sign(&key, q.as_bytes());
-        // let signature = hex::encode(signature.as_ref());
-        // s.insert("signature", signature.as_str());
-        // url.query_pairs_mut()
-        //     .append_pair("signature", signature.as_str());
-        //
-        // println!("{}", url.as_str());
-        // println!("https://fapi/binance.com/fapi/v1/order?symbol=BTCUSDT&side=BUY&type=LIMIT&quantity=1&price=9000&timeInForce=GTC&recvWindow=5000&timestamp=1591702613943&signature= 3c661234138461fcc7a7d8746c6558c9842d4e10870d2ecbedf7777cad694af9");
-        // let client = reqwest::Client::new();
-        // let mut build = client.post(url).header(
-        //     "X-MBX-APIKEY",
-        //     "5eb75348011c84276e69fd9f669a91fbd4a0e64e49405d0c218acc52ec600b8c",
-        // );
-        // let res = build
-        //     // .query(url.as_str())
-        //     .send()
-        //     .await
-        //     .unwrap()
-        //     .text()
-        //     .await
-        //     .unwrap();
-        // println!("{:?}", res);
+    #[test]
+    fn serde_qs() {
+        let qs = serde_qs::to_string(&PEmpty).unwrap_or("".to_string());
+        assert_eq!("", qs.as_str());
+    }
+
+    #[test]
+    fn url_join() {
+        let base_url = reqwest::Url::parse("https://api.binance.com/api/").unwrap();
+        let url = base_url.join("v1/sss").unwrap();
+        assert_eq!("https://api.binance.com/api/v1/sss", url.as_str());
     }
 
     #[test]

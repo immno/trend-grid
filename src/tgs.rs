@@ -18,8 +18,8 @@ use trend_grid::{start_server_with_config, LogConfig, LogRotationType, ServerCon
 async fn main() -> Result<()> {
     env::set_var(
         "TGS_CONFIG",
-        // "D:\\coding\\source\\trend-grid\\fixtures\\tgs.conf",
-        "/home/mno/IdeaProjects/trend-grid/fixtures/tgs.conf",
+        "D:\\coding\\source\\trend-grid\\fixtures\\tgs.conf",
+        // "/home/mno/IdeaProjects/trend-grid/fixtures/tgs.conf",
     );
     let config = match env::var("TGS_CONFIG") {
         Ok(path) => fs::read_to_string(&path)
@@ -27,7 +27,7 @@ async fn main() -> Result<()> {
             .map_err(|e| TgError::IoError(e)),
         Err(_) => Err(TgError::ConfNotFound),
     }?;
-    let config: ServerConfig = toml::from_str(&config)?;
+    let config = ServerConfig::from_str(&config)?;
     init_log(&config.log);
 
     let root = span!(tracing::Level::INFO, "app_start");
