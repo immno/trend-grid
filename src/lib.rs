@@ -7,7 +7,6 @@ pub use config::*;
 pub use error::TgError;
 
 use crate::grid::{FixedGridService, GridService};
-use crate::trade::{SimpleFactory, TradeFactory};
 
 mod config;
 mod error;
@@ -18,7 +17,7 @@ mod trade;
 #[tracing::instrument(skip_all)]
 pub async fn start_server_with_config(config: &ServerConfig) -> Result<()> {
     info!("Starting: Trend Grid Server");
-    let (market, trade) = SimpleFactory::new().make(config.trade.as_ref())?;
+    let (market, trade) = trade::factory(config.trade.as_ref())?;
 
     if let Some(eth) = config.coin.eth.as_ref() {
         let curr_price = market.deref().ticker_price().await?;

@@ -10,13 +10,12 @@ path = "src/tgs.rs"
 
 [dependencies]
 anyhow = "1" # 错误处理
-async-trait = "0.1" # 异步 async trait
-bytes = "1" # 高效处理网络 buffer 的库
-dashmap = "5" # 并发 HashMap
-futures = "0.3" # 提供 Stream trait
-http = "0.2" # 我们使用 HTTP status code 所以引入这个类型库
-serde = { version = "1", features = ["derive"] } # 序列化/反序列化
 thiserror = "1" # 错误定义和处理
+async-trait = "0.1" # 异步 async trait
+serde = { version = "1", features = ["derive"] } # 序列化/反序列化
+serde_json = "1"
+serde_qs = "0.8"
+chrono = { version = "0.4", features = ["serde"] }
 reqwest = { version = "0.11", features = ["blocking", "json"] }
 tokio = { version = "1", features = ["full"] } # 异步网络库
 tokio-stream = { version = "0.1", features = ["sync"] } # 处理 stream
@@ -24,7 +23,6 @@ tokio-util = { version = "0.7", features = ["compat"] } # tokio 和 futures 的�
 toml = "0.5" # toml 支持
 ring = "0.16"
 hex = "0.4"
-form_urlencoded = "1.0.1"
 tracing = "0.1" # 日志处理
 tracing-appender = "0.2" # 文件日志
 tracing-subscriber = { version = "0.3", features = ["json", "env-filter"] } # 日志处理
