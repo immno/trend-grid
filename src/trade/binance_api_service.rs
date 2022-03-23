@@ -1,14 +1,14 @@
+use std::borrow::Borrow;
+
 use async_trait::async_trait;
 use reqwest::Url;
 use ring::hmac;
 use serde::Serialize;
-use std::borrow::Borrow;
-use std::time::{SystemTime, UNIX_EPOCH};
 
-use crate::trade::binance_api_params::{PEmpty, PSymbol};
-use crate::trade::binance_api_response::{RH24ticker, RKline, RSpotPrice};
-use crate::trade::{MarketService, TickerPrice, TickerPriceDay, TradeService};
-use crate::{TgError, TradeConfig};
+use crate::trade::binance_api_params::{Interval, OrderSide, PEmpty, PKline, PSpotOrder, PSymbol};
+use crate::trade::binance_api_response::{OrderFill, RH24ticker, RKline, RSpotPrice, SpotOrder};
+use crate::trade::{MarketService, TickerPriceDay, TradeService};
+use crate::{Symbol, TgError, TradeConfig};
 
 pub struct BinanceTradeService {
     http_client: reqwest::Client,
@@ -19,22 +19,33 @@ pub struct BinanceTradeService {
 
 #[async_trait]
 impl TradeService for BinanceTradeService {
-    async fn buy_limit(&self, quantity: usize, price: Option<f64>) -> anyhow::Result<bool> {
-        let mut url = self.base_url.clone();
-        url.set_path("/fapi/v1/ping");
-        Ok(reqwest::get(url).await?.status().is_success())
+    async fn buy_limit(
+        &self,
+        symbol: &Symbol,
+        quantity: f64,
+        price: f64,
+    ) -> anyhow::Result<Option<Vec<OrderFill>>> {
+        self.order_ops(symbol, OrderSide::Buy, quantity, Some(price))
+            .await
     }
 
-    async fn buy(&self, quantity: usize) -> anyhow::Result<bool> {
-        todo!()
+    async fn buy(&self, symbol: &Symbol, quantity: f64) -> anyhow::Result<Option<Vec<OrderFill>>> {
+        self.order_ops(symbol, OrderSide::Buy, quantity, None).await
     }
 
-    async fn sell_limit(&self, quantity: usize, price: Option<f64>) -> anyhow::Result<bool> {
-        todo!()
+    async fn sell_limit(
+        &self,
+        symbol: &Symbol,
+        quantity: f64,
+        price: f64,
+    ) -> anyhow::Result<Option<Vec<OrderFill>>> {
+        self.order_ops(symbol, OrderSide::Sell, quantity, Some(price))
+            .await
     }
 
-    async fn sell(&self, quantity: usize) -> anyhow::Result<bool> {
-        todo!()
+    async fn sell(&self, symbol: &Symbol, quantity: f64) -> anyhow::Result<Option<Vec<OrderFill>>> {
+        self.order_ops(symbol, OrderSide::Sell, quantity, None)
+            .await
     }
 }
 
@@ -42,7 +53,12 @@ impl BinanceTradeService {
     pub fn new(config: &TradeConfig) -> Result<Self, TgError> {
         let base_url = reqwest::Url::parse(config.url.as_str())
             .map_err(|_| TgError::UrlError(config.url.to_string()))?;
-        let http_client = reqwest::Client::new();
+        let http_client = match config.proxy.as_ref() {
+            Some(proxy) => reqwest::Client::builder()
+                .proxy(reqwest::Proxy::all(proxy)?)
+                .build()?,
+            None => reqwest::Client::new(),
+        };
         let key = hmac::Key::new(hmac::HMAC_SHA256, config.secret.as_bytes());
 
         Ok(Self {
@@ -70,7 +86,7 @@ impl BinanceTradeService {
         let query = self.sign_and_query(params)?;
         let res = self
             .http_client
-            .request(reqwest::Method::GET, url)
+            .request(reqwest::Method::POST, url)
             .header("Content-Type", "application/json")
             .header("X-MBX-APIKEY", self.api_key.as_str())
             .query(query.as_str())
@@ -78,6 +94,25 @@ impl BinanceTradeService {
             .await?;
         let resp = TgError::bina_resp(res).await?;
         Ok(resp)
+    }
+
+    /// order ops
+    async fn order_ops(
+        &self,
+        symbol: &Symbol,
+        side: OrderSide,
+        quantity: f64,
+        price: Option<f64>,
+    ) -> anyhow::Result<Option<Vec<OrderFill>>> {
+        let param = PSpotOrder::new(symbol, side, quantity, price);
+        let json_str = self.send_request("order", &param).await?;
+        let order: SpotOrder = serde_json::from_str(json_str.as_str())?;
+        let fills = match order {
+            SpotOrder::Ack(_) => None,
+            SpotOrder::Result(_) => None,
+            SpotOrder::Full(full) => Some(full.fills),
+        };
+        Ok(fills)
     }
 }
 
@@ -94,25 +129,31 @@ impl MarketService for BinanceMarketService {
         Ok(!obj.is_empty())
     }
 
-    async fn ticker_price(&self) -> anyhow::Result<f64> {
-        let param = PSymbol {
-            symbol: "ss".to_string(),
-        };
+    async fn ticker_price(&self, symbol: &Symbol) -> anyhow::Result<f64> {
+        let param = PSymbol { symbol };
         let json_str = self.send_request("ticker/price", &param).await?;
         let obj: RSpotPrice = serde_json::from_str(json_str.as_str())?;
         Ok(obj.price)
     }
 
-    async fn ticker_24hr(&self) -> anyhow::Result<TickerPriceDay> {
-        let json_str = self.send_request("ticker/24hr", &PEmpty).await?;
-        let obj: RSpotPrice = serde_json::from_str(json_str.as_str())?;
+    async fn ticker_24hr(&self, symbol: &Symbol) -> anyhow::Result<TickerPriceDay> {
+        let param = PSymbol { symbol };
+        let json_str = self.send_request("ticker/24hr", &param).await?;
+        let obj: RH24ticker = serde_json::from_str(json_str.as_str())?;
 
         todo!()
     }
 
-    async fn k_lines(&self) -> anyhow::Result<bool> {
-        let json_str = self.send_request("ticker/24hr", &PEmpty).await?;
-        let obj: RSpotPrice = serde_json::from_str(json_str.as_str())?;
+    async fn k_lines(&self, symbol: &Symbol) -> anyhow::Result<bool> {
+        let param = PKline {
+            symbol,
+            interval: Interval::Min5,
+            start_time: None,
+            end_time: None,
+            limit: None,
+        };
+        let json_str = self.send_request("ticker/24hr", &param).await?;
+        let obj: Vec<RKline> = serde_json::from_str(json_str.as_str())?;
         todo!()
     }
 }
@@ -127,13 +168,6 @@ impl BinanceMarketService {
         let http_client = reqwest::Client::new();
 
         Ok(Self { http_client, url })
-    }
-
-    fn get_now() -> String {
-        match SystemTime::now().duration_since(UNIX_EPOCH) {
-            Ok(now) => now.as_millis().to_string(),
-            Err(_) => "0".to_string(),
-        }
     }
 
     /// send request
@@ -186,13 +220,49 @@ mod tests {
         );
     }
 
-    #[test]
-    fn sign2() {
-        let url = Url::parse("https://fapi.binance.com/fapi/v1/time?sd=23").unwrap();
-        let mut url1 = url.clone();
-        url1.set_path("/sdf/gfg");
-        url1.query_pairs_mut().append_pair("A", "B");
-        println!("{}", url1.to_string());
-        println!("{:?}", BinanceMarketService::get_now());
+    lazy_static::lazy_static! {
+        static ref TC: TradeConfig = TradeConfig {
+            handle: crate::TradeType::BinanceFakeApi,
+            market: None,
+            url: "https://fapi.binance.com".to_string(),
+            proxy: None,
+            key: "xx".to_string(),
+            secret: "xx".to_string(),
+        };
+    }
+
+    #[tokio::test]
+    async fn ping_should_be_successful() {
+        let res = BinanceMarketService::new(&TC).unwrap().ping().await;
+        // assert!(res.is_ok());
+        // assert!(res.unwrap());
+    }
+
+    #[tokio::test]
+    async fn ticker_price_should_be_successful() {
+        let res = BinanceMarketService::new(&TC)
+            .unwrap()
+            .ticker_price(&Symbol::Eth)
+            .await;
+        // assert!(res.is_ok());
+        // res.unwrap();
+    }
+
+    #[tokio::test]
+    async fn ticker_24hr_should_be_successful() {
+        let res = BinanceMarketService::new(&TC)
+            .unwrap()
+            .ticker_24hr(&Symbol::Eth)
+            .await;
+        // assert!(res.is_ok());
+    }
+
+    #[tokio::test]
+    async fn buy_should_be_successful() {
+        let res = BinanceTradeService::new(&TC)
+            .unwrap()
+            .buy(&Symbol::Eth, 1.0)
+            .await;
+        // assert!(res.is_ok());
     }
 }

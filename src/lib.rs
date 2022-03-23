@@ -1,12 +1,10 @@
-use std::ops::Deref;
+use std::borrow::Borrow;
 
 use anyhow::Result;
 use tracing::{info, warn};
 
 pub use config::*;
 pub use error::TgError;
-
-use crate::grid::{FixedGridService, GridService};
 
 mod config;
 mod error;
@@ -21,45 +19,37 @@ pub async fn start_server_with_config(config: &ServerConfig) -> Result<()> {
     let (market, trade) = trade::factory(config.trade.as_ref())?;
 
     if let Some(eth) = config.coin.eth.as_ref() {
-        let curr_price = market.deref().ticker_price().await?;
-        let grid: FixedGridService = eth.into();
-        let grid: &dyn GridService = &grid;
+        let symbol = Symbol::Eth.borrow();
+        let curr_price = market.ticker_price(symbol).await?;
+        let mut grid = grid::factory(symbol, eth)?;
         loop {
-            // if grid.is_buy(&curr_price) {
-            // if let Ok(_) = trade.buy(100).await {
-            //     grid.poise();
-            //     info!("挂单成功")
-            // } else {
-            //     return continue;
-            // }
-            // } else if grid.is_sell(&curr_price) {
-            //     if grid.is_air() {
-            //         grid.modify_price();
-            //     } else {
-            // if let Ok(_) = trade.sell(80).await {
-            //     grid.poise();
-            // } else {
-            //     return continue;
-            // }
+            let quantity = grid.buy_quantity();
+            if grid.is_buy(curr_price) {
+                if let Ok(_) = trade.buy(symbol, quantity).await {
+                    grid.poise();
+                    grid.record(curr_price);
+                    info!("挂单成功")
+                } else {
+                    return continue;
+                }
+            } else if grid.is_sell(curr_price) {
+                if grid.is_air() {
+                    grid.modify_price(curr_price);
+                } else {
+                    if let Ok(_) = trade.sell(symbol, 80.0).await {
+                        grid.poise();
+                    } else {
+                        return continue;
+                    }
+                }
+            } else {
+                warn!(
+                    "币种:{:?},当前市价：{}。未能满足交易,继续运行",
+                    symbol, curr_price
+                );
+            }
         }
-        // } else {
-        //     warn!(
-        //         "币种:{},当前市价：{}。未能满足交易,继续运行",
-        //         "eth",
-        //         curr_price.price.as_str()
-        //     );
-        // }
-        // }
     };
 
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {
-        let result = 2 + 2;
-        assert_eq!(result, 4);
-    }
 }

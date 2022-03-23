@@ -2,8 +2,9 @@ use anyhow::Result;
 use async_trait::async_trait;
 use tracing::info;
 
+use crate::trade::binance_api_response::OrderFill;
 use crate::trade::binance_api_service::{BinanceMarketService, BinanceTradeService};
-use crate::{TgError, TradeConfig, TradeType};
+use crate::{Symbol, TgError, TradeConfig, TradeType};
 
 mod binance_api_params;
 mod binance_api_response;
@@ -16,27 +17,37 @@ pub trait MarketService {
     async fn ping(&self) -> Result<bool>;
 
     /// Latest price for a symbol or symbols.
-    async fn ticker_price(&self) -> Result<f64>;
+    async fn ticker_price(&self, symbol: &Symbol) -> Result<f64>;
 
     /// 24 hour rolling window price change statistics. Careful when accessing this with no symbol.
-    async fn ticker_24hr(&self) -> Result<TickerPriceDay>;
+    async fn ticker_24hr(&self, symbol: &Symbol) -> Result<TickerPriceDay>;
 
     /// Kline/candlestick bars for a symbol. Klines are uniquely identified by their open time.
-    async fn k_lines(&self) -> Result<bool>;
+    async fn k_lines(&self, symbol: &Symbol) -> Result<bool>;
 }
 
 /// Abstraction of transaction services
 #[async_trait]
 pub trait TradeService {
     /// Send in a new order.
-    async fn buy_limit(&self, quantity: usize, price: Option<f64>) -> Result<bool>;
+    async fn buy_limit(
+        &self,
+        symbol: &Symbol,
+        quantity: f64,
+        price: f64,
+    ) -> Result<Option<Vec<OrderFill>>>;
 
-    async fn buy(&self, quantity: usize) -> Result<bool>;
+    async fn buy(&self, symbol: &Symbol, quantity: f64) -> Result<Option<Vec<OrderFill>>>;
 
     /// Send in a new order.
-    async fn sell_limit(&self, quantity: usize, price: Option<f64>) -> Result<bool>;
+    async fn sell_limit(
+        &self,
+        symbol: &Symbol,
+        quantity: f64,
+        price: f64,
+    ) -> Result<Option<Vec<OrderFill>>>;
 
-    async fn sell(&self, quantity: usize) -> Result<bool>;
+    async fn sell(&self, symbol: &Symbol, quantity: f64) -> Result<Option<Vec<OrderFill>>>;
 }
 
 pub fn factory(

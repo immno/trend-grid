@@ -8,7 +8,9 @@ pub enum TgError {
     #[error("I/O error")]
     IoError(#[from] std::io::Error),
     #[error("Parse config error")]
-    ConfigError(#[from] toml::de::Error),
+    ConfigParseError(#[from] toml::de::Error),
+    #[error("Config error:{0}")]
+    ConfError(String),
     #[error("Can not connect to the server")]
     PingError(),
     #[error("Url Error: {0}")]
