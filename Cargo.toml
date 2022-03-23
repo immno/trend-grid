@@ -11,6 +11,7 @@ path = "src/tgs.rs"
 [dependencies]
 anyhow = "1" # 错误处理
 thiserror = "1" # 错误定义和处理
+lazy_static = "1.4"
 async-trait = "0.1" # 异步 async trait
 serde = { version = "1", features = ["derive"] } # 序列化/反序列化
 serde_json = "1"

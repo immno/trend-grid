@@ -28,31 +28,3 @@ where
     }
     deserializer.deserialize_str(F64Visitor)
 }
-
-pub fn string_as_usize<'de, D>(deserializer: D) -> Result<usize, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    struct UsizeVisitor;
-
-    impl<'de> Visitor<'de> for UsizeVisitor {
-        type Value = usize;
-        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-            formatter.write_str("a string representation of a usize")
-        }
-        fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
-        where
-            E: serde::de::Error,
-        {
-            if v.is_empty() {
-                Ok(0)
-            } else {
-                v.parse::<usize>().map_err(|_| {
-                    E::invalid_value(Unexpected::Str(v), &"a string representation as usize")
-                })
-            }
-        }
-    }
-
-    deserializer.deserialize_str(UsizeVisitor)
-}

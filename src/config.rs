@@ -28,6 +28,7 @@ pub struct TradeConfig {
     pub handle: TradeType,
     pub market: Option<String>,
     pub url: String,
+    pub proxy: Option<String>,
     pub key: String,
     pub secret: String,
 }
@@ -54,13 +55,23 @@ impl AsRef<Coin> for Coin {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub enum Symbol {
+    #[serde(rename = "ETHUSDT")]
+    Eth,
+    #[serde(rename = "BTCUSDT")]
+    Btc,
+    #[serde(rename = "BNBUSDT")]
+    Bnb,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Coin {
     pub next_buy_price: f64,
     pub grid_sell_price: f64,
     pub step: usize,
     pub profit_ratio: f64,
     pub double_throw_ratio: f64,
-    pub quantity: usize,
+    pub quantity: Vec<f64>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -87,7 +98,7 @@ impl ServerConfig {
 
     pub fn from_str(s: &str) -> Result<Self, TgError> {
         let mut config: Self = toml::from_str(s)?;
-        let mut url = &mut config.trade.url;
+        let url = &mut config.trade.url;
         if !url.ends_with('/') {
             url.push('/');
         }
