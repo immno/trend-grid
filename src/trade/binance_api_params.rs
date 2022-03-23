@@ -1,5 +1,6 @@
-use crate::Symbol;
 use serde::{Deserialize, Serialize};
+
+use crate::Symbol;
 
 #[derive(Debug, Serialize)]
 pub struct PEmpty;
@@ -59,6 +60,29 @@ impl ToString for Interval {
             .unwrap()
             .trim_matches('"')
             .to_string()
+    }
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PQuerySpotOrder<'a> {
+    pub symbol: &'a Symbol,
+    pub order_id: Option<usize>,
+    pub orig_client_order_id: Option<String>,
+    pub new_client_order_id: Option<String>,
+    #[serde(flatten)]
+    pub ts: PTimestamp,
+}
+
+impl<'a> PQuerySpotOrder<'a> {
+    pub fn new(symbol: &'a Symbol) -> Self {
+        PQuerySpotOrder {
+            symbol,
+            order_id: None,
+            orig_client_order_id: None,
+            new_client_order_id: None,
+            ts: PTimestamp::now(),
+        }
     }
 }
 

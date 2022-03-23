@@ -1,7 +1,7 @@
 use std::borrow::Borrow;
 
 use anyhow::Result;
-use tracing::{info, warn};
+use tracing::{error, info, warn};
 
 pub use config::*;
 pub use error::TgError;
@@ -17,6 +17,13 @@ mod trade;
 pub async fn start_server_with_config(config: &ServerConfig) -> Result<()> {
     info!("Starting: Trend Grid Server");
     let (market, trade) = trade::factory(config.trade.as_ref())?;
+    let ping = market.ping().await;
+    if ping.is_err() {
+        error!(
+            "Unable to ping service: {}",
+            config.trade.as_ref().url.as_str()
+        );
+    }
 
     if let Some(eth) = config.coin.eth.as_ref() {
         let symbol = Symbol::Eth.borrow();

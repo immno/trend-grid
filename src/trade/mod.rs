@@ -2,9 +2,9 @@ use anyhow::Result;
 use async_trait::async_trait;
 use tracing::info;
 
-use crate::trade::binance_api_response::OrderFill;
+use crate::trade::binance_api_response::{RH24ticker, RKline, SpotOrderFull};
 use crate::trade::binance_api_service::{BinanceMarketService, BinanceTradeService};
-use crate::{Symbol, TgError, TradeConfig, TradeType};
+use crate::{Symbol, TradeConfig};
 
 mod binance_api_params;
 mod binance_api_response;
@@ -20,78 +20,32 @@ pub trait MarketService {
     async fn ticker_price(&self, symbol: &Symbol) -> Result<f64>;
 
     /// 24 hour rolling window price change statistics. Careful when accessing this with no symbol.
-    async fn ticker_24hr(&self, symbol: &Symbol) -> Result<TickerPriceDay>;
+    async fn ticker_24hr(&self, symbol: &Symbol) -> Result<RH24ticker>;
 
     /// Kline/candlestick bars for a symbol. Klines are uniquely identified by their open time.
-    async fn k_lines(&self, symbol: &Symbol) -> Result<bool>;
+    async fn k_lines(&self, symbol: &Symbol) -> Result<Vec<RKline>>;
 }
 
 /// Abstraction of transaction services
 #[async_trait]
 pub trait TradeService {
-    /// Send in a new order.
-    async fn buy_limit(
-        &self,
-        symbol: &Symbol,
-        quantity: f64,
-        price: f64,
-    ) -> Result<Option<Vec<OrderFill>>>;
-
-    async fn buy(&self, symbol: &Symbol, quantity: f64) -> Result<Option<Vec<OrderFill>>>;
+    async fn get_order(&self, symbol: &Symbol) -> Result<String>;
 
     /// Send in a new order.
-    async fn sell_limit(
-        &self,
-        symbol: &Symbol,
-        quantity: f64,
-        price: f64,
-    ) -> Result<Option<Vec<OrderFill>>>;
+    async fn buy_limit(&self, symbol: &Symbol, quantity: f64, price: f64) -> Result<SpotOrderFull>;
 
-    async fn sell(&self, symbol: &Symbol, quantity: f64) -> Result<Option<Vec<OrderFill>>>;
+    async fn buy(&self, symbol: &Symbol, quantity: f64) -> Result<SpotOrderFull>;
+
+    /// Send in a new order.
+    async fn sell_limit(&self, symbol: &Symbol, quantity: f64, price: f64)
+        -> Result<SpotOrderFull>;
+
+    async fn sell(&self, symbol: &Symbol, quantity: f64) -> Result<SpotOrderFull>;
 }
 
-pub fn factory(
-    config: &TradeConfig,
-) -> Result<(Box<dyn MarketService>, Box<dyn TradeService>), TgError> {
-    info!(
-        "Initialize Market&Trade Service: {:?} - {}",
-        config.handle,
-        config.url.as_str()
-    );
-    match config.handle {
-        TradeType::BinanceFakeApi => {
-            let m = Box::new(BinanceMarketService::new(config)?);
-            let t = Box::new(BinanceTradeService::new(config)?);
-            Ok((m, t))
-        }
-    }
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct TickerPrice {
-    pub symbol: String,
-    pub price: String,
-    pub time: u64,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct TickerPriceDay {
-    pub symbol: String,
-    pub price_change: f64,
-    pub price_change_percent: f64,
-    pub weighted_avg_price: f64,
-    pub last_price: f64,
-    pub last_qty: f64,
-    pub open_price: f64,
-    pub high_price: f64,
-    pub low_price: f64,
-    pub volume: f64,
-    pub quote_volume: f64,
-    pub open_time: u64,
-    pub close_time: u64,
-    pub first_id: u32,
-    // First tradeId
-    pub last_id: u32,
-    // Last tradeId
-    pub count: usize, // Trade count
+pub fn factory(config: &TradeConfig) -> Result<(Box<dyn MarketService>, Box<dyn TradeService>)> {
+    info!("Initialize Market&Trade Service: {}", config.url.as_str());
+    let m = Box::new(BinanceMarketService::new(config)?);
+    let t = Box::new(BinanceTradeService::new(config)?);
+    Ok((m, t))
 }
