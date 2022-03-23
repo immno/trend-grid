@@ -25,20 +25,10 @@ impl AsRef<CoinConfig> for CoinConfig {
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct TradeConfig {
-    pub handle: TradeType,
-    pub market: Option<String>,
     pub url: String,
     pub proxy: Option<String>,
     pub key: String,
     pub secret: String,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-pub enum TradeType {
-    // BinanceProdApi,
-    // BinanceProdWs,
-    BinanceFakeApi,
-    // BinanceFakeWs,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -113,10 +103,10 @@ mod tests {
     #[test]
     fn server_config_should_be_loaded() {
         let result = ServerConfig::from_str(include_str!("../fixtures/tgs.conf"));
-        assert!(result.is_ok());
         match result {
-            Ok(config) => println!("{:?}", config),
-            Err(error) => println!("{:?}", error),
+            Ok(ref config) => println!("{:?}", config),
+            Err(ref error) => println!("{:?}", error),
         }
+        assert!(result.is_ok());
     }
 }

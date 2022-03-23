@@ -1,7 +1,6 @@
 use tracing::info;
 
-use crate::trade::TickerPrice;
-use crate::{Coin, CoinConfig, Symbol, TgError};
+use crate::{Coin, Symbol, TgError};
 
 pub use self::fixed_grid_service::FixedGridService;
 

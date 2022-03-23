@@ -1,5 +1,5 @@
 use thiserror::Error;
-use tracing::debug;
+use tracing::{debug, warn};
 
 #[derive(Error, Debug)]
 pub enum TgError {
@@ -28,6 +28,7 @@ impl TgError {
         if !resp.status().is_success() {
             let status_code = u16::from(resp.status());
             let error = resp.text().await.unwrap_or_default();
+            warn!("Binance {}:{}", status_code, error.as_str());
             Err(TgError::BinanceError(status_code, error))
         } else {
             let resp_text = resp

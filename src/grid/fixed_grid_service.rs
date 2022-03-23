@@ -1,7 +1,4 @@
-use std::borrow::{Borrow, BorrowMut};
-
 use crate::grid::GridService;
-use crate::trade::TickerPrice;
 use crate::{Coin, TgError};
 
 pub struct FixedGridService {
