@@ -16,8 +16,8 @@ use crate::{Symbol, TgError, TradeConfig};
 pub struct BinanceTradeService {
     http_client: reqwest::Client,
     hmac_key: hmac::Key,
-    pub api_key: String,
-    pub base_url: reqwest::Url,
+    api_key: String,
+    base_url: reqwest::Url,
 }
 
 #[async_trait]
@@ -128,7 +128,7 @@ fn build_client(config: &TradeConfig) -> Result<Client> {
 
 pub struct BinanceMarketService {
     http_client: reqwest::Client,
-    pub url: Url,
+    url: Url,
 }
 
 #[async_trait]
@@ -285,10 +285,10 @@ mod tests {
 
     #[tokio::test]
     async fn buy_should_be_successful() {
-        // let res = BinanceTradeService::new(&TC)
-        //     .unwrap()
-        //     .buy(&Symbol::Eth, 12.0)
-        //     .await
-        //     .unwrap();
+        let res = BinanceTradeService::new(&TC)
+            .unwrap()
+            .buy(&Symbol::Eth, 12.0)
+            .await
+            .unwrap();
     }
 }

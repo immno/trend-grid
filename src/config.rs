@@ -1,4 +1,4 @@
-use std::fs;
+use std::{fmt, fs};
 
 use serde::{Deserialize, Serialize};
 
@@ -54,6 +54,12 @@ pub enum Symbol {
     Bnb,
 }
 
+impl fmt::Display for Symbol {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Coin {
     pub next_buy_price: f64,
@@ -103,9 +109,8 @@ mod tests {
     #[test]
     fn server_config_should_be_loaded() {
         let result = ServerConfig::from_str(include_str!("../fixtures/tgs.conf"));
-        match result {
-            Ok(ref config) => println!("{:?}", config),
-            Err(ref error) => println!("{:?}", error),
+        if let Err(ref error) = result {
+            println!("{:?}", error);
         }
         assert!(result.is_ok());
     }
