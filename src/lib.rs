@@ -1,10 +1,15 @@
 use std::borrow::Borrow;
+use std::sync::Arc;
+use std::time::Duration;
 
 use anyhow::Result;
-use tracing::{error, info, warn};
+use tokio::task::JoinHandle;
+use tracing::{error, info, span, warn};
 
 pub use config::*;
 pub use error::TgError;
+
+use crate::trade::{MarketService, TradeService};
 
 mod config;
 mod error;
@@ -13,50 +18,59 @@ mod serde;
 mod trade;
 
 /// 通过配置创建 KV 服务器
-#[tracing::instrument(skip_all)]
 pub async fn start_server_with_config(config: &ServerConfig) -> Result<()> {
     info!("Starting: Trend Grid Server");
     let (market, trade) = trade::factory(config.trade.as_ref())?;
-    let ping = market.ping().await;
-    if ping.is_err() {
-        error!(
-            "Unable to ping service: {}",
-            config.trade.as_ref().url.as_str()
-        );
+
+    // If the server fails, shut down the server directly
+    if let Err(e) = market.ping().await {
+        let url = config.trade.as_ref().url.as_str();
+        error!("Unable to ping service: {}", url);
+        return Err(e);
     }
 
     if let Some(eth) = config.coin.eth.as_ref() {
-        let symbol = Symbol::Eth.borrow();
-        let curr_price = market.ticker_price(symbol).await?;
-        let mut grid = grid::factory(symbol, eth)?;
-        loop {
-            let quantity = grid.buy_quantity();
-            if grid.is_buy(curr_price) {
-                if let Ok(_) = trade.buy(symbol, quantity).await {
-                    grid.poise();
-                    grid.record(curr_price);
-                    info!("挂单成功")
-                } else {
-                    return continue;
-                }
-            } else if grid.is_sell(curr_price) {
-                if grid.is_air() {
-                    grid.modify_price(curr_price);
-                } else {
-                    if let Ok(_) = trade.sell(symbol, 80.0).await {
-                        grid.poise();
-                    } else {
-                        return continue;
-                    }
-                }
-            } else {
-                warn!(
-                    "币种:{:?},当前市价：{}。未能满足交易,继续运行",
-                    symbol, curr_price
-                );
-            }
-        }
+        start_with_coin(Symbol::Eth, eth, market.clone(), trade.clone())?;
     };
 
+    if let Some(bnb) = config.coin.bnb.as_ref() {
+        start_with_coin(Symbol::Bnb, bnb, market.clone(), trade.clone())?;
+    };
+
+    if let Some(btc) = config.coin.btc.as_ref() {
+        start_with_coin(Symbol::Btc, btc, market.clone(), trade.clone())?;
+    };
+
+    warn!("No option coin is running.");
+
+    Ok(())
+}
+
+fn start_with_coin(
+    symbol: Symbol,
+    coin: &Coin,
+    market: Arc<dyn MarketService>,
+    trade: Arc<dyn TradeService>,
+) -> Result<()> {
+    let mut grid = grid::factory(&symbol, coin, market.clone(), trade.clone())?;
+
+    let root = span!(tracing::Level::INFO, "Grid", "{}", &symbol);
+    let _enter = root.enter();
+
+    tokio::spawn(async move {
+        loop {
+            match market.ticker_price(&symbol).await {
+                Ok(price) => {
+                    if let Err(e) = grid.execute(&symbol, price).await {
+                        error!("Grid execute error: {}", e);
+                    }
+                }
+                Err(e) => {
+                    error!("Get ticker price error: {}.", e);
+                    tokio::time::sleep(Duration::from_secs(1)).await;
+                }
+            }
+        }
+    });
     Ok(())
 }

@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use anyhow::Result;
 use async_trait::async_trait;
 use tracing::info;
@@ -12,7 +14,7 @@ mod binance_api_service;
 
 /// Abstraction of Market Service
 #[async_trait]
-pub trait MarketService {
+pub trait MarketService: Send + Sync + 'static {
     /// Test connectivity to the Rest API.
     async fn ping(&self) -> Result<bool>;
 
@@ -28,7 +30,7 @@ pub trait MarketService {
 
 /// Abstraction of transaction services
 #[async_trait]
-pub trait TradeService {
+pub trait TradeService: Send + Sync + 'static {
     async fn get_order(&self, symbol: &Symbol) -> Result<String>;
 
     /// Send in a new order.
@@ -43,9 +45,9 @@ pub trait TradeService {
     async fn sell(&self, symbol: &Symbol, quantity: f64) -> Result<SpotOrderFull>;
 }
 
-pub fn factory(config: &TradeConfig) -> Result<(Box<dyn MarketService>, Box<dyn TradeService>)> {
+pub fn factory(config: &TradeConfig) -> Result<(Arc<dyn MarketService>, Arc<dyn TradeService>)> {
     info!("Initialize Market&Trade Service: {}", config.url.as_str());
-    let m = Box::new(BinanceMarketService::new(config)?);
-    let t = Box::new(BinanceTradeService::new(config)?);
+    let m = Arc::new(BinanceMarketService::new(config)?);
+    let t = Arc::new(BinanceTradeService::new(config)?);
     Ok((m, t))
 }

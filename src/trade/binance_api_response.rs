@@ -1,8 +1,9 @@
-use serde::de::{SeqAccess, Unexpected, Visitor};
-use serde::{Deserialize, Deserializer, Serialize};
 use std::fmt;
 
-use crate::serde::string_as_f64;
+use serde::de::{SeqAccess, Unexpected, Visitor};
+use serde::{Deserialize, Deserializer, Serialize};
+
+use crate::serde::{string_as_f64, string_as_f64_opt};
 use crate::trade::binance_api_params::{OrderSide, SpotOrderType, TimeInForce};
 use crate::Symbol;
 
@@ -151,8 +152,8 @@ pub struct SpotOrderFull {
     #[serde(deserialize_with = "string_as_f64")]
     pub avg_price: f64,
     /// please ignore when order type is TRAILING_STOP_MARKET
-    #[serde(deserialize_with = "string_as_f64")]
-    pub stop_price: f64,
+    #[serde(default, deserialize_with = "string_as_f64_opt")]
+    pub stop_price: Option<f64>,
     /// 用户设置的原始订单数量
     #[serde(deserialize_with = "string_as_f64")]
     pub orig_qty: f64,
@@ -177,9 +178,11 @@ pub struct SpotOrderFull {
     pub order_type: SpotOrderType,
     /// 订单方向
     pub side: OrderSide,
-    // pub activate_price: f64,
+    #[serde(default, deserialize_with = "string_as_f64_opt")]
+    pub activate_price: Option<f64>,
     /// callback rate, only return with TRAILING_STOP_MARKET order
-    // pub price_pate: f64,
+    #[serde(default, deserialize_with = "string_as_f64_opt")]
+    pub price_pate: Option<f64>,
     pub update_time: i64,
     // closePosition
     // origType
