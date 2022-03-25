@@ -1,6 +1,7 @@
 use std::borrow::Borrow;
-use std::ops::Div;
+use std::ops::{Add, AddAssign, Div, Mul, MulAssign, Sub};
 use std::sync::Arc;
+use std::time::Duration;
 
 use async_trait::async_trait;
 use tracing::{info, warn};
@@ -32,18 +33,22 @@ impl GridService for FixedGridService {
         let symbol = self.symbol.borrow();
         let quantity = self.buy_quantity();
         if self.is_buy(price) {
-            if let Ok(_) = self.trade.buy(symbol, quantity).await {
-                self.reset_ratio();
-                self.poise();
-                self.record(price);
-                info!("挂单成功")
+            if let Ok(Some(success_price)) = self.trade.buy(symbol, quantity).await {
+                self.reset_ratio().await?; // ok
+                self.record(success_price); // ok
+                self.modify_price(0, price, price);
+                info!("挂单成功");
+                tokio::time::sleep(Duration::from_secs(120)).await;
             }
         } else if self.is_sell(price) {
             if self.is_air() {
-                self.modify_price(price);
+                // self.modify_price(price);
             } else {
-                if let Ok(_) = self.trade.sell(symbol, 80.0).await {
-                    self.poise();
+                let sell_amount = self.get_quantity(false);
+                if let Ok(Some(success_price)) = self.trade.sell(symbol, 80.0).await {
+                    self.reset_ratio().await?; // ok
+
+                    // self.poise();
                 }
             }
         } else {
@@ -108,29 +113,32 @@ impl FixedGridService {
         let k_lines = self.market.k_lines(self.symbol.borrow()).await?;
         let mut percent_total = 0.0;
         for line in k_lines.iter() {
-            let v = (line.high - line.open) / line.low;
-            percent_total = v.abs() + percent_total;
+            let v = (line.high - line.open).abs() / line.low;
+            percent_total = v + percent_total;
         }
-        self.inner.double_throw_ratio = percent_total.div(k_lines.len() as f64);
+        let value = percent_total.div(k_lines.len() as f64).mul(100.0);
+        self.inner.double_throw_ratio = value;
+        self.inner.profit_ratio = value;
         Ok(())
-    }
-
-    fn poise(&self) -> bool {
-        todo!()
     }
 
     fn record(&mut self, price: f64) {
         self.inner.history.push(price);
     }
 
-    fn modify_price(&mut self, price: f64) {
-        self.inner.buy = self.inner.sell * (1.0 - self.inner.double_throw_ratio / 100.0);
-        self.inner.sell = self.inner.sell * (1.0 + self.inner.double_throw_ratio / 100.0);
-        if self.is_buy(price) {
-            self.inner.buy = price * (1.0 - self.inner.double_throw_ratio / 100.0);
-        } else if self.is_sell(price) {
-            self.inner.sell = price * (1.0 + self.inner.double_throw_ratio / 100.0);
+    fn modify_price(&mut self, step_add: usize, deal_price: f64, market_price: f64) {
+        self.inner.buy = deal_price.mul(1.0.sub(self.inner.double_throw_ratio.div(100.0)));
+        self.inner.sell = deal_price.mul(1.0.add(self.inner.profit_ratio.div(100.0)));
+        if self.is_buy(market_price) {
+            self.inner.buy = market_price.mul(1.0.sub(self.inner.double_throw_ratio.div(100.0)));
+        } else if self.is_sell(market_price) {
+            self.inner.sell = market_price.mul(1.0.add(self.inner.profit_ratio.div(100.0)));
         }
+        self.inner.step.add_assign(step_add);
+        info!(
+            "修改后的补仓价格为:{},修改后的网格价格为:{}.",
+            self.inner.buy, self.inner.sell
+        );
     }
 
     /// Calculate the number of buy/sell
@@ -146,5 +154,17 @@ impl FixedGridService {
         } else {
             *quantity.last().unwrap()
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn add_usize() {
+        let mut x: usize = 12;
+        // x.add_assign(-1);
+        // assert_eq!(x, 11);
     }
 }
