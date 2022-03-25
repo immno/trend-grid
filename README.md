@@ -10,3 +10,5 @@
 
 ## 参考
 [Rust Binance API](https://github.com/PrivateRookie/bian-rs)
+[币安开发文档](https://binance-docs.github.io/apidocs/spot/cn/#45fa4e00db)
+[币安Spot Test](https://testnet.binance.vision/)

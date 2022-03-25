@@ -243,10 +243,10 @@ mod tests {
 
     lazy_static::lazy_static! {
         static ref TC: TradeConfig = TradeConfig {
-            url: "https://testnet.binancefuture.com/api/v3/".to_string(),
+            url: "https://testnet.binance.vision/api/v3/".to_string(),
             proxy: None,
-            key: "5eb75348011c84276e69fd9f669a91fbd4a0e64e49405d0c218acc52ec600b8c".to_string(),
-            secret: "4b42ddee81f19826959a40249d339eaae87a2caac1bce690c18a5ca52a2c3cfd".to_string(),
+            key: "FzNvOmpEc0iRSz958NGPx58oOUkJCUf2KctzYlI0CKCguVkZw7TBxZVolzVjnqYS".to_string(),
+            secret: "fI6ObqSQriAjmMGX0JpEiLEOWcx14W8i3sY7cpLFWai6FKs6mc16ktr2mhqBOi0x".to_string(),
         };
     }
 
@@ -296,8 +296,7 @@ mod tests {
     async fn buy_should_be_successful() {
         // let res = BinanceTradeService::new(&TC)
         //     .unwrap()
-        //     .buy(&Symbol::Eth, 12.0)
-        //     .await
-        //     .unwrap();
+        //     .buy(&Symbol::Eth, 0.003)
+        //     .await.unwrap();
     }
 }
