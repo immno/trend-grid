@@ -1,10 +1,11 @@
+use std::sync::Arc;
+
 use anyhow::Result;
 use async_trait::async_trait;
-use std::sync::Arc;
 use tracing::info;
 
 use crate::trade::{MarketService, TradeService};
-use crate::{Coin, Symbol, TgError};
+use crate::{Coin, Symbol};
 
 pub use self::fixed_grid_service::FixedGridService;
 
@@ -14,7 +15,7 @@ mod fixed_grid_service;
 #[async_trait]
 pub trait GridService: Send {
     /// whether to buy
-    async fn execute(&mut self, symbol: &Symbol, price: f64) -> Result<()>;
+    async fn execute(&mut self, price: f64) -> Result<()>;
 }
 
 pub fn factory(
@@ -24,6 +25,6 @@ pub fn factory(
     trade: Arc<dyn TradeService>,
 ) -> Result<Box<dyn GridService>> {
     info!("Initialize Grid Service: {:?} - {:?}", symbol, config);
-    let fgs = FixedGridService::new(config, market, trade)?;
+    let fgs = FixedGridService::new(symbol.clone(), config, market, trade)?;
     Ok(Box::new(fgs))
 }

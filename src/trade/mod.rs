@@ -4,7 +4,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use tracing::info;
 
-use crate::trade::binance_api_response::{RH24ticker, RKline, SpotOrderFull};
+use crate::trade::binance_api_response::{QuerySpotOrder, RH24ticker, RKline};
 use crate::trade::binance_api_service::{BinanceMarketService, BinanceTradeService};
 use crate::{Symbol, TradeConfig};
 
@@ -31,18 +31,17 @@ pub trait MarketService: Send + Sync + 'static {
 /// Abstraction of transaction services
 #[async_trait]
 pub trait TradeService: Send + Sync + 'static {
-    async fn get_order(&self, symbol: &Symbol) -> Result<String>;
+    async fn get_order(&self, symbol: &Symbol) -> Result<QuerySpotOrder>;
 
     /// Send in a new order.
-    async fn buy_limit(&self, symbol: &Symbol, quantity: f64, price: f64) -> Result<SpotOrderFull>;
+    async fn buy_limit(&self, symbol: &Symbol, quantity: f64, price: f64) -> Result<Option<f64>>;
 
-    async fn buy(&self, symbol: &Symbol, quantity: f64) -> Result<SpotOrderFull>;
+    async fn buy(&self, symbol: &Symbol, quantity: f64) -> Result<Option<f64>>;
 
     /// Send in a new order.
-    async fn sell_limit(&self, symbol: &Symbol, quantity: f64, price: f64)
-        -> Result<SpotOrderFull>;
+    async fn sell_limit(&self, symbol: &Symbol, quantity: f64, price: f64) -> Result<Option<f64>>;
 
-    async fn sell(&self, symbol: &Symbol, quantity: f64) -> Result<SpotOrderFull>;
+    async fn sell(&self, symbol: &Symbol, quantity: f64) -> Result<Option<f64>>;
 }
 
 pub fn factory(config: &TradeConfig) -> Result<(Arc<dyn MarketService>, Arc<dyn TradeService>)> {
