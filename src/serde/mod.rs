@@ -28,31 +28,3 @@ where
     }
     deserializer.deserialize_str(F64Visitor)
 }
-
-pub fn string_as_f64_opt<'de, D>(deserializer: D) -> Result<Option<f64>, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    struct F64OptionVisitor;
-
-    impl<'de> Visitor<'de> for F64OptionVisitor {
-        type Value = Option<f64>;
-        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-            formatter.write_str("a string representation of a f64")
-        }
-        fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
-        where
-            E: serde::de::Error,
-        {
-            if v.is_empty() {
-                Ok(None)
-            } else {
-                match v.parse::<f64>() {
-                    Ok(f) => Ok(Some(f)),
-                    _ => Ok(None),
-                }
-            }
-        }
-    }
-    deserializer.deserialize_str(F64OptionVisitor)
-}

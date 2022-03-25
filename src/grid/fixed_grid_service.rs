@@ -1,12 +1,16 @@
-use async_trait::async_trait;
+use std::borrow::Borrow;
+use std::ops::Div;
 use std::sync::Arc;
-use tracing::{info, span, warn};
+
+use async_trait::async_trait;
+use tracing::{info, warn};
 
 use crate::grid::GridService;
 use crate::trade::{MarketService, TradeService};
 use crate::{Coin, Symbol, TgError};
 
 pub struct FixedGridService {
+    symbol: Symbol,
     pub market: Arc<dyn MarketService>,
     pub trade: Arc<dyn TradeService>,
     pub inner: Inner,
@@ -24,10 +28,12 @@ pub struct Inner {
 
 #[async_trait]
 impl GridService for FixedGridService {
-    async fn execute(&mut self, symbol: &Symbol, price: f64) -> anyhow::Result<()> {
+    async fn execute(&mut self, price: f64) -> anyhow::Result<()> {
+        let symbol = self.symbol.borrow();
         let quantity = self.buy_quantity();
         if self.is_buy(price) {
             if let Ok(_) = self.trade.buy(symbol, quantity).await {
+                self.reset_ratio();
                 self.poise();
                 self.record(price);
                 info!("挂单成功")
@@ -53,6 +59,7 @@ impl GridService for FixedGridService {
 
 impl FixedGridService {
     pub fn new(
+        symbol: Symbol,
         c: &Coin,
         market: Arc<dyn MarketService>,
         trade: Arc<dyn TradeService>,
@@ -70,6 +77,7 @@ impl FixedGridService {
             step: c.step,
         };
         Ok(Self {
+            symbol,
             market,
             trade,
             inner,
@@ -94,6 +102,17 @@ impl FixedGridService {
 
     fn sell_quantity(&self) -> f64 {
         self.get_quantity(false)
+    }
+
+    async fn reset_ratio(&mut self) -> anyhow::Result<()> {
+        let k_lines = self.market.k_lines(self.symbol.borrow()).await?;
+        let mut percent_total = 0.0;
+        for line in k_lines.iter() {
+            let v = (line.high - line.open) / line.low;
+            percent_total = v.abs() + percent_total;
+        }
+        self.inner.double_throw_ratio = percent_total.div(k_lines.len() as f64);
+        Ok(())
     }
 
     fn poise(&self) -> bool {

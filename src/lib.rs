@@ -1,4 +1,3 @@
-use std::borrow::Borrow;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -29,19 +28,32 @@ pub async fn start_server_with_config(config: &ServerConfig) -> Result<()> {
         return Err(e);
     }
 
+    let mut handles = Vec::new();
+
     if let Some(eth) = config.coin.eth.as_ref() {
-        start_with_coin(Symbol::Eth, eth, market.clone(), trade.clone())?;
+        let join_eth = start_with_coin(Symbol::Eth, eth, market.clone(), trade.clone())?;
+        handles.push(join_eth);
     };
 
     if let Some(bnb) = config.coin.bnb.as_ref() {
-        start_with_coin(Symbol::Bnb, bnb, market.clone(), trade.clone())?;
+        let join_eth = start_with_coin(Symbol::Bnb, bnb, market.clone(), trade.clone())?;
+        handles.push(join_eth);
     };
 
     if let Some(btc) = config.coin.btc.as_ref() {
-        start_with_coin(Symbol::Btc, btc, market.clone(), trade.clone())?;
+        let join_eth = start_with_coin(Symbol::Btc, btc, market.clone(), trade.clone())?;
+        handles.push(join_eth);
     };
 
-    warn!("No option coin is running.");
+    if handles.is_empty() {
+        warn!("No option coin is running.");
+    }
+
+    for handle in handles {
+        if let (Err(e),) = tokio::join!(handle) {
+            error!("Processor error: {}", e);
+        };
+    }
 
     Ok(())
 }
@@ -51,17 +63,17 @@ fn start_with_coin(
     coin: &Coin,
     market: Arc<dyn MarketService>,
     trade: Arc<dyn TradeService>,
-) -> Result<()> {
+) -> Result<JoinHandle<()>> {
     let mut grid = grid::factory(&symbol, coin, market.clone(), trade.clone())?;
 
     let root = span!(tracing::Level::INFO, "Grid", "{}", &symbol);
     let _enter = root.enter();
 
-    tokio::spawn(async move {
+    let join = tokio::spawn(async move {
         loop {
             match market.ticker_price(&symbol).await {
                 Ok(price) => {
-                    if let Err(e) = grid.execute(&symbol, price).await {
+                    if let Err(e) = grid.execute(price).await {
                         error!("Grid execute error: {}", e);
                     }
                 }
@@ -72,5 +84,5 @@ fn start_with_coin(
             }
         }
     });
-    Ok(())
+    Ok(join)
 }

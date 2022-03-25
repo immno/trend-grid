@@ -9,7 +9,9 @@ use serde::Serialize;
 use crate::trade::binance_api_params::{
     Interval, OrderSide, PEmpty, PKline, PQuerySpotOrder, PSpotOrder, PSymbol,
 };
-use crate::trade::binance_api_response::{RH24ticker, RKline, RSpotPrice, SpotOrderFull};
+use crate::trade::binance_api_response::{
+    QuerySpotOrder, RH24ticker, RKline, RSpotPrice, SpotOrder,
+};
 use crate::trade::{MarketService, TradeService};
 use crate::{Symbol, TgError, TradeConfig};
 
@@ -22,34 +24,30 @@ pub struct BinanceTradeService {
 
 #[async_trait]
 impl TradeService for BinanceTradeService {
-    async fn get_order(&self, symbol: &Symbol) -> Result<String> {
+    async fn get_order(&self, symbol: &Symbol) -> Result<QuerySpotOrder> {
         let param = PQuerySpotOrder::new(symbol);
-        let res = self
+        let json_str = self
             .send_request("order", reqwest::Method::GET, &param)
             .await?;
-        Ok(res)
+        let order: QuerySpotOrder = serde_json::from_str(json_str.as_str())?;
+        Ok(order)
     }
 
-    async fn buy_limit(&self, symbol: &Symbol, quantity: f64, price: f64) -> Result<SpotOrderFull> {
+    async fn buy_limit(&self, symbol: &Symbol, quantity: f64, price: f64) -> Result<Option<f64>> {
         self.order_ops(symbol, OrderSide::Buy, quantity, Some(price))
             .await
     }
 
-    async fn buy(&self, symbol: &Symbol, quantity: f64) -> Result<SpotOrderFull> {
+    async fn buy(&self, symbol: &Symbol, quantity: f64) -> Result<Option<f64>> {
         self.order_ops(symbol, OrderSide::Buy, quantity, None).await
     }
 
-    async fn sell_limit(
-        &self,
-        symbol: &Symbol,
-        quantity: f64,
-        price: f64,
-    ) -> Result<SpotOrderFull> {
+    async fn sell_limit(&self, symbol: &Symbol, quantity: f64, price: f64) -> Result<Option<f64>> {
         self.order_ops(symbol, OrderSide::Sell, quantity, Some(price))
             .await
     }
 
-    async fn sell(&self, symbol: &Symbol, quantity: f64) -> Result<SpotOrderFull> {
+    async fn sell(&self, symbol: &Symbol, quantity: f64) -> Result<Option<f64>> {
         self.order_ops(symbol, OrderSide::Sell, quantity, None)
             .await
     }
@@ -106,13 +104,24 @@ impl BinanceTradeService {
         side: OrderSide,
         quantity: f64,
         price: Option<f64>,
-    ) -> Result<SpotOrderFull> {
+    ) -> Result<Option<f64>> {
         let param = PSpotOrder::new(symbol, side, quantity, price);
         let json_str = self
             .send_request("order", reqwest::Method::POST, &param)
             .await?;
-        let order: SpotOrderFull = serde_json::from_str(json_str.as_str())?;
-        Ok(order)
+        let order: SpotOrder = serde_json::from_str(json_str.as_str())?;
+        let fills = match order {
+            SpotOrder::Ack(_) => None,
+            SpotOrder::Result(_) => None,
+            SpotOrder::Full(full) => {
+                if full.fills.is_empty() {
+                    None
+                } else {
+                    Some(full.fills[0].price)
+                }
+            }
+        };
+        Ok(fills)
     }
 }
 
@@ -234,7 +243,7 @@ mod tests {
 
     lazy_static::lazy_static! {
         static ref TC: TradeConfig = TradeConfig {
-            url: "https://testnet.binancefuture.com/fapi/v1/".to_string(),
+            url: "https://testnet.binancefuture.com/api/v3/".to_string(),
             proxy: None,
             key: "5eb75348011c84276e69fd9f669a91fbd4a0e64e49405d0c218acc52ec600b8c".to_string(),
             secret: "4b42ddee81f19826959a40249d339eaae87a2caac1bce690c18a5ca52a2c3cfd".to_string(),
@@ -285,10 +294,10 @@ mod tests {
 
     #[tokio::test]
     async fn buy_should_be_successful() {
-        let res = BinanceTradeService::new(&TC)
-            .unwrap()
-            .buy(&Symbol::Eth, 12.0)
-            .await
-            .unwrap();
+        // let res = BinanceTradeService::new(&TC)
+        //     .unwrap()
+        //     .buy(&Symbol::Eth, 12.0)
+        //     .await
+        //     .unwrap();
     }
 }
