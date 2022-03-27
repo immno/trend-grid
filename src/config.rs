@@ -62,12 +62,11 @@ impl fmt::Display for Symbol {
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Coin {
-    pub next_buy_price: f64,
-    pub grid_sell_price: f64,
-    pub step: usize,
+    pub buy_price: f64,
+    pub sell_price: f64,
     pub profit_ratio: f64,
     pub double_throw_ratio: f64,
-    pub quantity: Vec<f64>,
+    pub quantity: f64,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]

@@ -9,6 +9,6 @@
 `cargo-deny`对于生产环境下的代码非常重要，因为现代软件依赖太多，依赖树过于庞杂，靠人眼是很难审查出问题的。通过使用`cargo-deny`，可以避免很多有风险的第三方库。  
 
 ## 参考
-[Rust Binance API](https://github.com/PrivateRookie/bian-rs)
-[币安开发文档](https://binance-docs.github.io/apidocs/spot/cn/#45fa4e00db)
-[币安Spot Test](https://testnet.binance.vision/)
+[Rust Binance API](https://github.com/PrivateRookie/bian-rs)  
+[币安开发文档](https://binance-docs.github.io/apidocs/spot/cn/#45fa4e00db)  
+[币安Spot Test](https://testnet.binance.vision/)  
