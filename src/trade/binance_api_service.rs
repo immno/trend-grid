@@ -245,8 +245,8 @@ mod tests {
         static ref TC: TradeConfig = TradeConfig {
             url: "https://testnet.binance.vision/api/v3/".to_string(),
             proxy: None,
-            key: "FzNvOmpEc0iRSz958NGPx58oOUkJCUf2KctzYlI0CKCguVkZw7TBxZVolzVjnqYS".to_string(),
-            secret: "fI6ObqSQriAjmMGX0JpEiLEOWcx14W8i3sY7cpLFWai6FKs6mc16ktr2mhqBOi0x".to_string(),
+            key: "X".to_string(),
+            secret: "X".to_string(),
         };
     }
 
