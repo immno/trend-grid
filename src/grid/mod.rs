@@ -7,9 +7,9 @@ use tracing::info;
 use crate::trade::{MarketService, TradeService};
 use crate::{Coin, Symbol};
 
-pub use self::fixed_grid_service::FixedGridService;
+pub use self::grid_service::FixedGridService;
 
-mod fixed_grid_service;
+mod grid_service;
 
 /// Abstraction of Grid services
 #[async_trait]

@@ -7,10 +7,10 @@ use ring::hmac;
 use serde::Serialize;
 
 use crate::trade::binance_api_params::{
-    Interval, OrderSide, PEmpty, PKline, PQuerySpotOrder, PSpotOrder, PSymbol,
+    Interval, OrderSide, PEmpty, PKline, PQuerySpotOrder, PSpotOrder, PSymbol, PTimestamp,
 };
 use crate::trade::binance_api_response::{
-    QuerySpotOrder, RH24ticker, RKline, RSpotPrice, SpotOrder,
+    QuerySpotOrder, RH24ticker, RKline, RSpotPrice, SpotAccount, SpotOrder,
 };
 use crate::trade::{MarketService, TradeService};
 use crate::{Symbol, TgError, TradeConfig};
@@ -50,6 +50,15 @@ impl TradeService for BinanceTradeService {
     async fn sell(&self, symbol: &Symbol, quantity: f64) -> Result<Option<f64>> {
         self.order_ops(symbol, OrderSide::Sell, quantity, None)
             .await
+    }
+
+    async fn account(&self) -> Result<SpotAccount> {
+        let param = PTimestamp::now();
+        let json_str = self
+            .send_request("account", reqwest::Method::GET, &param)
+            .await?;
+        let account: SpotAccount = serde_json::from_str(json_str.as_str())?;
+        Ok(account)
     }
 }
 
@@ -245,8 +254,8 @@ mod tests {
         static ref TC: TradeConfig = TradeConfig {
             url: "https://testnet.binance.vision/api/v3/".to_string(),
             proxy: None,
-            key: "X".to_string(),
-            secret: "X".to_string(),
+            key: "x".to_string(),
+            secret: "x".to_string(),
         };
     }
 
@@ -298,5 +307,15 @@ mod tests {
         //     .unwrap()
         //     .buy(&Symbol::Eth, 0.003)
         //     .await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn account_should_be_successful() {
+        // let res = BinanceTradeService::new(&TC)
+        //     .unwrap()
+        //     .account()
+        //     .await
+        //     .unwrap();
+        // println!("{:?}", res);
     }
 }

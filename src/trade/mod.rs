@@ -4,7 +4,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use tracing::info;
 
-use crate::trade::binance_api_response::{QuerySpotOrder, RH24ticker, RKline};
+use crate::trade::binance_api_response::{QuerySpotOrder, RH24ticker, RKline, SpotAccount};
 use crate::trade::binance_api_service::{BinanceMarketService, BinanceTradeService};
 use crate::{Symbol, TradeConfig};
 
@@ -42,6 +42,8 @@ pub trait TradeService: Send + Sync + 'static {
     async fn sell_limit(&self, symbol: &Symbol, quantity: f64, price: f64) -> Result<Option<f64>>;
 
     async fn sell(&self, symbol: &Symbol, quantity: f64) -> Result<Option<f64>>;
+
+    async fn account(&self) -> Result<SpotAccount>;
 }
 
 pub fn factory(config: &TradeConfig) -> Result<(Arc<dyn MarketService>, Arc<dyn TradeService>)> {
