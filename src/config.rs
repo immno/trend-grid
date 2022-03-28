@@ -1,6 +1,8 @@
+use std::ops::Div;
 use std::{fmt, fs};
 
-use serde::{Deserialize, Serialize};
+use serde::de::{Error, Unexpected, Visitor};
+use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::TgError;
 
@@ -64,7 +66,9 @@ impl fmt::Display for Symbol {
 pub struct Coin {
     pub buy_price: f64,
     pub sell_price: f64,
+    #[serde(deserialize_with = "percentage_as_f64")]
     pub profit_ratio: f64,
+    #[serde(deserialize_with = "percentage_as_f64")]
     pub double_throw_ratio: f64,
     pub quantity: f64,
 }
@@ -101,6 +105,44 @@ impl ServerConfig {
     }
 }
 
+pub fn percentage_as_f64<'de, D>(deserializer: D) -> Result<f64, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    struct PercentageVisitor;
+
+    impl<'de> Visitor<'de> for PercentageVisitor {
+        type Value = f64;
+        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            formatter.write_str("a string representation of a percentage")
+        }
+
+        fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+        where
+            E: serde::de::Error,
+        {
+            if v.is_empty() {
+                Ok(0.0)
+            } else if v.ends_with('%') {
+                v[..v.len() - '%'.len_utf8()]
+                    .parse::<f64>()
+                    .map(|x| x.div(100.0))
+                    .map_err(|_| {
+                        E::invalid_value(
+                            Unexpected::Str(v),
+                            &"a string representation as percentage",
+                        )
+                    })
+            } else {
+                v.parse::<f64>().map_err(|_| {
+                    E::invalid_value(Unexpected::Str(v), &"a string representation as percentage")
+                })
+            }
+        }
+    }
+    deserializer.deserialize_str(PercentageVisitor)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -112,5 +154,14 @@ mod tests {
             println!("{:?}", error);
         }
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn percentage_test() {
+        let str = "2.3%";
+        let str1 = &str[..str.len() - '%'.len_utf8()];
+        assert_eq!(str1, "2.3");
+        let n = str1.parse::<f64>().unwrap();
+        assert_eq!(n, 2.3)
     }
 }
