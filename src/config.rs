@@ -1,7 +1,7 @@
 use std::ops::Div;
 use std::{fmt, fs};
 
-use serde::de::{Error, Unexpected, Visitor};
+use serde::de::{Unexpected, Visitor};
 use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::TgError;
