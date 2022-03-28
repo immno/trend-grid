@@ -13,7 +13,6 @@ pub struct RSpotPrice {
     pub symbol: Symbol,
     #[serde(deserialize_with = "string_as_f64")]
     pub price: f64,
-    pub time: i64,
 }
 
 #[derive(Debug, Deserialize)]

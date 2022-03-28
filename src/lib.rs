@@ -1,9 +1,18 @@
+use std::env;
+use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::Result;
 use tokio::task::JoinHandle;
 use tracing::{error, info, span, warn};
+use tracing_subscriber::{
+    filter,
+    fmt::{self, format},
+    layer::SubscriberExt,
+    prelude::*,
+    EnvFilter,
+};
 
 pub use config::*;
 pub use error::TgError;
@@ -16,7 +25,7 @@ mod grid;
 mod serde;
 mod trade;
 
-/// 通过配置创建 KV 服务器
+/// 通过配置创建 TG 服务器
 pub async fn start_server_with_config(config: &ServerConfig) -> Result<()> {
     info!("Starting: Trend Grid Server");
     let (market, trade) = trade::factory(config.trade.as_ref())?;
@@ -85,4 +94,38 @@ fn start_with_coin(
         }
     });
     Ok(join)
+}
+
+// 初始化日志配置
+pub fn init_log(log: &LogConfig) {
+    env::set_var("RUST_LOG", &log.log_level);
+
+    let stdout_log = fmt::layer().compact();
+
+    let file_appender = match log.rotation {
+        LogRotationType::Hourly => tracing_appender::rolling::hourly(&log.path, "server.log"),
+        LogRotationType::Daily => tracing_appender::rolling::daily(&log.path, "server.log"),
+        LogRotationType::Never => tracing_appender::rolling::never(&log.path, "server.log"),
+    };
+
+    let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
+    let fmt_layer = fmt::layer()
+        .event_format(format().compact())
+        .with_writer(non_blocking);
+
+    let level = match filter::LevelFilter::from_str(&log.log_level) {
+        Ok(level) => level,
+        Err(_) => filter::LevelFilter::INFO,
+    };
+
+    let log_file_level = match log.enable_log_file {
+        true => level,
+        false => filter::LevelFilter::OFF,
+    };
+
+    tracing_subscriber::registry()
+        .with(EnvFilter::from_default_env())
+        .with(stdout_log)
+        .with(fmt_layer.with_filter(log_file_level))
+        .init();
 }
