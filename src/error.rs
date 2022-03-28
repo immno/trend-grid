@@ -21,6 +21,8 @@ pub enum TgError {
     BinanceError(u16, String),
     #[error("Decode response body error {0}")]
     DecodeError(String),
+    #[error("Internal error: {0}")]
+    Internal(String),
 }
 
 impl TgError {

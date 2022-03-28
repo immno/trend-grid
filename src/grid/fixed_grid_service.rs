@@ -1,5 +1,5 @@
 use std::borrow::Borrow;
-use std::ops::{Add, AddAssign, Div, Mul, MulAssign, Sub};
+use std::ops::{Add, Div, Mul, Sub};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -9,6 +9,8 @@ use tracing::{info, warn};
 use crate::grid::GridService;
 use crate::trade::{MarketService, TradeService};
 use crate::{Coin, Symbol, TgError};
+
+const HUNDRED_PERCENT: f64 = 1.0;
 
 pub struct FixedGridService {
     symbol: Symbol,
@@ -29,40 +31,42 @@ pub struct Db {
 #[async_trait]
 impl GridService for FixedGridService {
     async fn execute(&mut self, price: f64) -> anyhow::Result<()> {
-        // let symbol = self.symbol.borrow();
-        // let quantity = self.db.get_quantity();
-        // if self.is_buy(price) {
-        //     if let Ok(Some(success_price)) = self.trade.buy(symbol, quantity).await {
-        //         self.reset_ratio().await?;
-        //         self.add_record(success_price);
-        //         self.modify_price(0, price, price);
-        //         info!("挂单成功");
-        //         tokio::time::sleep(Duration::from_secs(120)).await;
-        //     }
-        // } else if self.is_sell(price) {
-        //     if self.is_air() {
-        //         self.modify_price(0, self.db.sell, price);
-        //     } else {
-        //         let last_price = self.db.last_record();
-        //         let sell_amount = self.db.get_quantity();
-        //         let porfit_usdt = price.sub(last_price).mul(sell_amount);
-        //
-        //         if let Ok(Some(success_price)) = self.trade.sell(symbol, sell_amount).await {
-        //             warn!(
-        //                 "报警：币种为：{}。卖单量为：{}。预计盈利{}U",
-        //                 symbol, sell_amount, porfit_usdt
-        //             );
-        //             self.reset_ratio().await?;
-        //             self.modify_price(-1, last_price, price);
-        //             self.remove_record();
-        //         }
-        //     }
-        // } else {
-        //     warn!(
-        //         "币种:{:?},当前市价：{}。未能满足交易,继续运行",
-        //         "symbol", price
-        //     );
-        // }
+        let symbol = self.symbol.borrow();
+        let quantity = self.db.quantity;
+        if self.is_buy(price) {
+            if let Ok(Some(success_price)) = self.trade.buy(symbol, quantity).await {
+                info!(
+                    "交易成功: 买入币种为: {},价格为: {}, 数量: {},",
+                    symbol, success_price, quantity
+                );
+                self.reset_ratio().await?;
+                self.db.push_record(success_price);
+                self.modify_price_buy(price);
+                tokio::time::sleep(Duration::from_secs(120)).await;
+            }
+        } else if self.is_sell(price) {
+            if self.is_air() {
+                self.modify_price_air(price);
+            } else {
+                if let Ok(Some(success_price)) = self.trade.sell(symbol, quantity).await {
+                    println!("##Sell: {} {}", success_price, price);
+                    let last_price = self.db.last_record().cloned().ok_or(TgError::Internal(
+                        "Sell success. But price history is empty".to_string(),
+                    ))?;
+                    let profit = price.sub(last_price).mul(quantity);
+                    warn!(
+                        "交易成功：卖出币种为：{}。卖单量为：{}。预计盈利{}U",
+                        symbol, quantity, profit
+                    );
+                    self.reset_ratio().await?;
+                    self.modify_price(last_price, price);
+                    self.db.pop_record();
+                    tokio::time::sleep(Duration::from_secs(60)).await;
+                }
+            }
+        } else {
+            warn!("币种:{},当前市价：{}。未能满足交易,继续运行", symbol, price);
+        }
 
         Ok(())
     }
@@ -104,30 +108,43 @@ impl FixedGridService {
     }
 
     async fn reset_ratio(&mut self) -> anyhow::Result<()> {
+        let value = self.calc_k_lines().await?;
+        self.db.double_throw_ratio = value;
+        self.db.profit_ratio = value;
+        Ok(())
+    }
+
+    fn modify_price_buy(&mut self, market_price: f64) {
+        self.modify_price(market_price, market_price);
+    }
+
+    fn modify_price_air(&mut self, market_price: f64) {
+        self.modify_price(self.db.sell, market_price);
+    }
+
+    fn modify_price(&mut self, deal_price: f64, market_price: f64) {
+        self.db.buy = deal_price.mul(HUNDRED_PERCENT.sub(self.db.double_throw_ratio));
+        self.db.sell = deal_price.mul(HUNDRED_PERCENT.add(self.db.profit_ratio));
+        if self.is_buy(market_price) {
+            self.db.buy = market_price.mul(HUNDRED_PERCENT.sub(self.db.double_throw_ratio));
+        } else if self.is_sell(market_price) {
+            self.db.sell = market_price.mul(HUNDRED_PERCENT.add(self.db.profit_ratio));
+        }
+        info!(
+            "修改后的补仓价格为:{},修改后的网格价格为:{}.",
+            self.db.buy, self.db.sell
+        );
+    }
+
+    async fn calc_k_lines(&self) -> anyhow::Result<f64> {
         let k_lines = self.market.k_lines(self.symbol.borrow()).await?;
         let mut percent_total = 0.0;
         for line in k_lines.iter() {
             let v = (line.high - line.open).abs() / line.low;
             percent_total = v + percent_total;
         }
-        let value = percent_total.div(k_lines.len() as f64).mul(100.0);
-        self.db.double_throw_ratio = value;
-        self.db.profit_ratio = value;
-        Ok(())
-    }
-
-    fn modify_price(&mut self, step_add: i8, deal_price: f64, market_price: f64) {
-        self.db.buy = deal_price.mul(1.0.sub(self.db.double_throw_ratio.div(100.0)));
-        self.db.sell = deal_price.mul(1.0.add(self.db.profit_ratio.div(100.0)));
-        if self.is_buy(market_price) {
-            self.db.buy = market_price.mul(1.0.sub(self.db.double_throw_ratio.div(100.0)));
-        } else if self.is_sell(market_price) {
-            self.db.sell = market_price.mul(1.0.add(self.db.profit_ratio.div(100.0)));
-        }
-        info!(
-            "修改后的补仓价格为:{},修改后的网格价格为:{}.",
-            self.db.buy, self.db.sell
-        );
+        let value = percent_total.div(k_lines.len() as f64);
+        Ok(value)
     }
 }
 
@@ -146,22 +163,4 @@ impl Db {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn add_usize() {
-        let mut x: usize = 12;
-        // x.add_assign(-1);
-        // assert_eq!(x, 11);
-    }
-
-    #[test]
-    fn calc() {
-        // let price = 5;
-        // let price1 = 2;
-        // let price2 = 3;
-        // let x = price.sub(price1).mul(price2);
-        // assert_eq!(x, 9);
-    }
-}
+mod tests {}
