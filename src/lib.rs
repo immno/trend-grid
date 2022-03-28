@@ -75,7 +75,7 @@ fn start_with_coin(
 ) -> Result<JoinHandle<()>> {
     let mut grid = grid::factory(&symbol, coin, market.clone(), trade.clone())?;
 
-    let root = span!(tracing::Level::INFO, "Grid", "{}", &symbol);
+    let root = span!(tracing::Level::INFO, "Grid");
     let _enter = root.enter();
 
     let join = tokio::spawn(async move {

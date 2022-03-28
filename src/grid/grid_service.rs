@@ -66,6 +66,7 @@ impl GridService for FixedGridService {
             }
         } else {
             warn!("币种:{},当前市价：{}。未能满足交易,继续运行", symbol, price);
+            tokio::time::sleep(Duration::from_secs(1)).await;
         }
 
         Ok(())
@@ -131,7 +132,7 @@ impl FixedGridService {
             self.db.sell = market_price.mul(HUNDRED_PERCENT.add(self.db.profit_ratio));
         }
         info!(
-            "修改后的补仓价格为:{},修改后的网格价格为:{}.",
+            "修改后的补仓（买入）价格为:{},修改后的网格（卖出）价格为:{}.",
             self.db.buy, self.db.sell
         );
     }
