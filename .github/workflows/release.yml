@@ -31,7 +31,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
         with:
-          token: ${{ secrets.GITHUB_ACTIONS }}
+          token: ${{ secrets.GITHUB_TOKEN }}
           submodules: recursive
       - name: Build project
         run: |
@@ -40,7 +40,7 @@ jobs:
         id: create_release
         uses: actions/create-release@v1
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_ACTIONS }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: ${{ github.ref }}
           release_name: Release ${{ github.ref }}
@@ -50,7 +50,7 @@ jobs:
         id: upload-kv-asset
         uses: actions/upload-release-asset@v1
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_ACTIONS }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: ./target/release/kvs
@@ -63,6 +63,6 @@ jobs:
       - name: Deploy docs to github actions
         uses: peaceiris/actions-gh-pages@v3
         with:
-          github_token: ${{ secrets.GITHUB_ACTIONS }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./target/doc/simple_kv
           destination_dir: ${{ env.RELEASE_VERSION }}
