@@ -27,6 +27,7 @@ hex = "0.4"
 tracing = "0.1" # 日志处理
 tracing-appender = "0.2" # 文件日志
 tracing-subscriber = { version = "0.3", features = ["json", "env-filter"] } # 日志处理
+tungstenite = "0.17" #WebSocket
 
 [dev-dependencies]
 rand = "0.8" # 随机数处理

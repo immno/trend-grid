@@ -11,6 +11,7 @@ use crate::{Symbol, TradeConfig};
 mod binance_api_params;
 mod binance_api_response;
 mod binance_api_service;
+mod binance_api_ws;
 
 /// Abstraction of Market Service
 #[async_trait]
@@ -44,6 +45,12 @@ pub trait TradeService: Send + Sync + 'static {
     async fn sell(&self, symbol: &Symbol, quantity: f64) -> Result<Option<f64>>;
 
     async fn account(&self) -> Result<SpotAccount>;
+}
+
+pub trait WebsocketResponse<R: serde::de::DeserializeOwned> {
+    fn read_stream_single(&mut self) -> Result<R>;
+    fn read_stream_multi(&mut self) -> Result<R>;
+    fn close_stream(&mut self);
 }
 
 pub fn factory(config: &TradeConfig) -> Result<(Arc<dyn MarketService>, Arc<dyn TradeService>)> {
